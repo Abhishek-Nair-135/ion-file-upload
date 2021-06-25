@@ -13,7 +13,6 @@ import {
 import { Alert } from "@material-ui/lab";
 // eslint-disable-next-line import/no-webpack-loader-syntax
 import createWorker from "workerize-loader!./worker";
-import * as worker from "./worker";
 
 const App = () => {
   const [UploadStatus, setUploadStatus] = useState({
