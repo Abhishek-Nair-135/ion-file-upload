@@ -8,6 +8,7 @@ import {
   Toolbar,
   Typography,
   Container,
+  TextField
 } from "@material-ui/core";
 import { Alert } from "@material-ui/lab";
 // eslint-disable-next-line import/no-webpack-loader-syntax
@@ -27,8 +28,10 @@ const App = () => {
   const [hashPercentage, setHashPercentage] = useState(0);
   const [fileChunks, setFileChunks] = useState([]);
   const [status, setStatus] = useState(UploadStatus.INITIAL);
-  const [ongoingRequests, setOngoingRequests] = useState([]);
   const [open, setOpen] = useState(false);
+  const [load, setLoad] = useState(false);
+  const [loadFile, setLoadFile] = useState(null);
+  const [alertText, setAlertText] = useState("File Uploaded Successfully!!");
   const [fakeTotalPercentage, setFakeTotalPercentage] = useState(0);
 
   const totalPercentage = useMemo(() => {
@@ -43,7 +46,7 @@ const App = () => {
     const chunkUploadPercentage =
       fileChunks.reduce((total, chunk) => total + chunk.uploadPercentage, 0) /
       fileChunks.length;
-    // fake merging time
+      
     return chunkUploadPercentage - 5;
   }, [fileChunks, status]);
 
@@ -56,9 +59,30 @@ const App = () => {
     [file, status]
   );
 
+  const handleLoad = () => {
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function () {
+      if (this.readyState == 4 && this.status == 200) {
+        setOpen(true);
+        setAlertText(this.responseText);
+      }
+    };
+    xhttp.open("GET", `http://localhost:1234/load?file=${loadFile}`, true);
+    xhttp.send();
+    setOpen(true);
+    setAlertText(
+      "Command issued successfully!! Loading file to the Database may take some time"
+    );
+  };
+
+  const handleChange = (e) => {
+    setLoadFile(e.target.value);
+  };
+
   useEffect(() => {
     if (status === UploadStatus.SUCCESS) {
       setOpen(true);
+      setLoad(true);
     }
   }, [status]);
 
@@ -100,6 +124,16 @@ const App = () => {
           >
             Upload
           </Button>
+          <TextField type="text" placeholder="Enter file name" value={loadFile} onChange={handleChange} />
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleLoad}
+            disabled={!load}
+            style={{ marginLeft: 5 }}
+          >
+            Load file to DB
+          </Button>
         </Container>
         <Container style={{ padding: 0 }}>
           <div>hash progress: {Math.floor(hashPercentage)}%</div>
@@ -125,7 +159,7 @@ const App = () => {
           onClose={() => setOpen(false)}
           autoHideDuration={3000}
         >
-          <Alert severity="success">File Uploaded Successfully!!</Alert>
+          <Alert severity="success">{alertText}</Alert>
         </Snackbar>
       </Container>
     </Paper>
@@ -135,16 +169,6 @@ const App = () => {
     setHashPercentage(0);
     setStatus(UploadStatus.INITIAL);
     setFileChunks([]);
-  }
-
-  async function handlePause() {
-    if (status === UploadStatus.PAUSED) {
-      const { uploadedChunks } = await verifyUpload(file.name, fileHash);
-      await uploadChunks(file, fileHash, fileChunks, uploadedChunks);
-    } else {
-      setStatus(UploadStatus.PAUSED);
-      ongoingRequests.forEach((xhr) => xhr?.abort());
-    }
   }
 
   function handleFileChange(e) {
@@ -232,10 +256,9 @@ const App = () => {
         formData.append("fileHash", fileHash);
         formData.append("chunkHash", `${fileHash}-${chunk.chunkIndex}`);
         formData.append("chunk", chunk.chunk);
-        return futch({
+        return fetch({
           url: "http://localhost:1234/upload",
           data: formData,
-          setOngoingRequests,
           onUploadProgress: (e) => handleUploadProgress(e, chunk.chunkIndex),
         });
       });
@@ -244,7 +267,7 @@ const App = () => {
     await Promise.all(requests);
 
     // merge
-    await futch({
+    await fetch({
       url: "http://localhost:1234/merge",
       headers: { "content-type": "application/json" },
       data: JSON.stringify({ fileName: file.name, fileHash }),
@@ -267,7 +290,7 @@ const App = () => {
   }
 
   async function verifyUpload(fileName, fileHash) {
-    return await futch({
+    return await fetch({
       url: "http://localhost:1234/verify",
       headers: { "content-type": "application/json" },
       data: JSON.stringify({ fileName, fileHash }),
@@ -277,14 +300,13 @@ const App = () => {
 
 export default App;
 
-function futch(option) {
+function fetch(option) {
   const {
     url,
     method = "POST",
     headers,
     data,
     onUploadProgress,
-    setOngoingRequests,
   } = option;
 
   return new Promise((resolve) => {
@@ -293,11 +315,6 @@ function futch(option) {
     xhr.upload.onprogress = (e) => onUploadProgress?.(e);
 
     xhr.onload = () => {
-      // remove finished xhr
-      setOngoingRequests?.((ongoingRequests) =>
-        ongoingRequests.filter((r) => r !== xhr)
-      );
-
       try {
         resolve(JSON.parse(xhr.response));
       } catch (error) {
@@ -314,8 +331,5 @@ function futch(option) {
     }
 
     xhr.send(data);
-
-    // add xhr to ongoing request list
-    setOngoingRequests?.((ongoingRequests) => [...ongoingRequests, xhr]);
   });
 }
