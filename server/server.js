@@ -6,8 +6,8 @@ const path = require("path");
 const dotenv = require("dotenv");
 const JSONStream = require("JSONStream");
 const Thermo = require("./models/thermometer");
-const Busboy = require('busboy');
-const uploadDir = path.resolve(__dirname, 'upload');
+const Busboy = require("busboy");
+const uploadDir = path.resolve(__dirname, "upload");
 
 dotenv.config();
 
@@ -31,7 +31,14 @@ app.use(express.json({ extended: true }));
 
 app.get("/load", (req, res) => {
   let observations = [];
-  const dataStreamFromFile = fs.createReadStream(`${__dirname}/${req.query.file}`);
+  let filePath = path.join(__dirname, "upload", req.query.file);
+
+  if (!fs.existsSync(filePath))
+    return res.status(400).json({
+      message: "The file doesn't exist on our server, please upload the file!!",
+    });
+
+  const dataStreamFromFile = fs.createReadStream(filePath);
 
   dataStreamFromFile
     .pipe(JSONStream.parse("*"))
@@ -114,7 +121,7 @@ app.post("/upload", (req, res) => {
 
     // save to system temp dir first, then move to upload dir
     const saveTo = path.join(chunkDir, chunkHash);
-    const tmpSaveTo = path.join(__dirname,'tempp', chunkHash);
+    const tmpSaveTo = path.join(__dirname, "tempp", chunkHash);
     const stream = fs.createWriteStream(tmpSaveTo);
     stream.on("finish", () => fs.renameSync(tmpSaveTo, saveTo));
 
@@ -133,15 +140,15 @@ app.post("/merge", async (req, res) => {
   const { fileName, fileHash } = req.body;
   const filePath = path.join(uploadDir, fileName);
   const chunkDir = path.join(uploadDir, fileHash);
-  
+
   fs.readdirSync(chunkDir).forEach((chunk) => {
     const chunkPath = path.join(chunkDir, chunk);
     fs.appendFileSync(filePath, fs.readFileSync(chunkPath));
     fs.unlinkSync(chunkPath);
   });
-  
+
   fs.rmdirSync(chunkDir);
-  
+
   res.statusCode = 200;
   res.send("file chunks merged");
 });
