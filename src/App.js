@@ -110,7 +110,7 @@ const App = () => {
                 </Toolbar>
             </AppBar>
             <Container style={{ padding: 16 }}>
-                <input id="contained-button-file" type="file" style={{ display: 'none' }} onChange={handleFileChange} />
+                <input id="contained-button-file" type="file" accept=".json" style={{ display: 'none' }} onChange={handleFileChange} />
                 <label htmlFor="contained-button-file">
                     <Button variant="contained" component="span" color="primary">
                         choose file
